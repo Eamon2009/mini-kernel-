@@ -77,8 +77,7 @@ mykernel/
 ├── kernel/
 │   ├── kernel_main.c          # C entry point, ordered subsystem initialisation
 │   ├── kernel.h               # Primitive types, macros, port I/O inlines, structs
-│   ├── panic.c                # Kernel panic — red screen, register dump, halt
-│   └── panic.h
+│   └── panic.c                # Kernel panic — red screen, register dump, halt
 │
 ├── drivers/
 │   ├── vga.c / vga.h          # VGA text mode — 80×25, scroll, hardware cursor
@@ -102,7 +101,7 @@ mykernel/
     └── ports.c / ports.h      # port_inb / port_outb wrappers (C linkage)
 ```
 
-**28 files. Zero external libraries.**
+**27 source files + grub.cfg. Zero external libraries.**
 
 ---
 
@@ -114,7 +113,7 @@ mykernel/
 
 - Places the Multiboot 1 magic header (`0x1BADB002`) in its own `.multiboot` section so the linker guarantees it sits in the first 8 KB of the binary — GRUB will not boot the kernel otherwise.
 - Allocates a 16 KB stack in `.bss` (no binary bloat — `resb` reserves space without emitting zeros).
-- Sets `esp`, pushes the multiboot info pointer and magic from GRUB's registers, then calls `kernel_main`.
+- Sets `esp`, pushes `ebx` (multiboot info pointer) then `eax` (magic value) onto the stack as cdecl arguments, then calls `kernel_main(uint32_t magic, multiboot_info_t *mbi)`.
 - Contains a `cli; hlt` loop after the call — if `kernel_main` ever returns, the machine halts safely.
 
 **`boot/kernel_entry.asm`** — the assembly half of the interrupt system.
@@ -127,9 +126,11 @@ mykernel/
 
 ### CPU
 
-**`cpu/gdt.c`** — three descriptors: null, kernel code (`0x9A`), kernel data (`0x92`). All span the full 4 GB. Loaded with `lgdt` + a far jump to reload `CS`.
+**`cpu/gdt.c`** — three descriptors: null, kernel code (`0x9A`, ring 0 executable), kernel data (`0x92`, ring 0 writable). All span the full 4 GB with granularity `0xCF` (4 KB pages, 32-bit operand size). Loaded via `gdt_flush()`, an external ASM stub that calls `lgdt` and performs a far jump to reload `CS` with the new code segment selector.
 
-**`cpu/idt.c`** — 256 interrupt gates. `idt_set_gate()` accepts a handler address, selector, and flags. Gates are set to `0x8E` (present, ring 0, 32-bit interrupt gate — which clears `IF` on entry automatically).
+**`cpu/idt.c`** — 256 interrupt gates, all zeroed (not-present) on init. `idt_set_gate()` accepts a handler address, selector, and flags — it ORs the flags with `0x60` internally. ISR gates are installed with flags `0x8E` (present, ring 0, 32-bit interrupt gate — which clears `IF` on entry automatically).
+
+**`kernel/panic.c`** — `panic()` is declared `NORETURN` in `kernel.h` and defined here. Calls `cli` immediately, paints the screen red via `vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_RED)` + `vga_clear()`, prints the message and a full register dump if `panic_set_regs()` was called by an ISR beforehand, then halts with a `cli; hlt` loop. `panic_set_regs(registers_t *r)` is called by `isr_handler` before invoking `panic()` so the dump is always populated on exceptions.
 
 **`cpu/isr.c`** — installs the 32 ASM stubs into the IDT, maintains a C handler table, and dispatches to registered handlers. Unhandled exceptions call `panic_set_regs()` then `panic()` with the exception name.
 
@@ -141,7 +142,7 @@ mykernel/
 
 **`drivers/vga.c`** — writes directly to the memory-mapped VGA framebuffer at `0xB8000`. Each cell is 2 bytes: the low byte is ASCII, the high byte is the colour attribute (background in bits 6–4, foreground in bits 3–0). Handles `\n`, `\r`, `\t`, scroll, and moves the hardware cursor via ports `0x3D4`/`0x3D5`.
 
-**`drivers/keyboard.c`** — reads PS/2 Set-1 scan codes from port `0x60` on IRQ 1. Translates codes to ASCII using two lookup tables (normal and shifted). Tracks Shift and Caps Lock state. Buffers characters in a 64-byte ring buffer. `keyboard_getchar()` sleeps with `hlt` until a character is available.
+**`drivers/keyboard.c`** — reads PS/2 Set-1 scan codes from port `0x60` on IRQ 1. Translates codes to ASCII using two lookup tables (`sc_ascii` and `sc_ascii_shift`). Tracks Left/Right Shift (scan codes `0x2A`/`0x36`) and Caps Lock (`0x3A`) state. Buffers characters in a 64-byte ring buffer. `keyboard_getchar()` sleeps with `hlt` until a character is available; `keyboard_haschar()` is non-blocking.
 
 **`drivers/timer.c`** — programs the 8253/8254 PIT channel 0 with `outb(PIT_CMD, 0x36)` followed by the 16-bit divisor (low byte then high byte). At 100 Hz the divisor is 11,931. Maintains a `volatile uint32_t ticks` counter incremented on every IRQ 0. `timer_sleep(ms)` converts milliseconds to ticks and halts until the target is reached.
 
@@ -149,11 +150,11 @@ mykernel/
 
 ### Memory Management
 
-**`mm/pmm.c`** — bitmap allocator. One bit per 4 KB frame. Initialised all-ones (everything reserved), then the GRUB memory map (`mmap_addr` / `mmap_length`) marks available RAM free. The kernel image and bitmap itself are re-marked used. `pmm_alloc_frame()` scans 32 bits at a time, returns a physical address. Supports up to 1 GB RAM.
+**`mm/pmm.c`** — bitmap allocator. One bit per 4 KB frame, stored in a static `uint32_t bitmap[BMP_WORDS]` array inside the kernel's `.bss`. Initialised all-ones (everything reserved), then the GRUB memory map (`mmap_addr` / `mmap_length`) marks available RAM free. All frames from `0x0` up to `kernel_end + sizeof(bitmap)` are re-marked used to protect the kernel image and bitmap. `pmm_alloc_frame()` scans 32 bits at a time and returns a physical address. Supports up to 1 GB RAM.
 
 **`mm/paging.c`** — creates a page directory and one page table in BSS (4 KB aligned). Identity-maps the first 4 MB (virtual == physical), loads CR3, and sets `CR0.PG`. Registers a page fault handler (ISR 14) that prints the faulting address from `CR2`. `paging_map()` allocates page tables on demand from the PMM.
 
-**`mm/kmalloc.c`** — heap starts at `0x400000` (above the identity-mapped region). Each allocation prepends a `block_t` header with a magic number. `kmalloc()` first scans the free list, then extends the heap by mapping new physical frames. `kfree()` checks the magic before marking the block free — a corrupted pointer is caught rather than silently corrupting the heap.
+**`mm/kmalloc.c`** — heap base is `0x400000`, ceiling `0x800000`. Each allocation prepends a `block_t` header with a magic number (`0xC0FFEE00` = used, `0xDEADBEEF` = free). `kmalloc_init()` maps an initial 4 KB page and sets up the first free block. `kmalloc()` first scans the free list, then calls `paging_map()` + `pmm_alloc_frame()` to extend the heap by one aligned chunk. `kfree()` validates the magic before marking the block free — a bad pointer is caught and logged rather than silently corrupting the heap.
 
 ---
 
@@ -161,7 +162,7 @@ mykernel/
 
 **`lib/string.c`** — `memset`, `memcpy`, `memcmp`, `strlen`, `strcpy`, `strcmp`, `strchr`. Implemented without any libc dependency.
 
-**`lib/kprintf.c`** — format string parser supporting `%c`, `%s`, `%d`, `%u`, `%x`, `%p`, `%%`. Uses GCC's `__builtin_va_start` / `__builtin_va_arg` (works in freestanding mode without `<stdarg.h>`). Writes directly to `vga_putchar`.
+**`lib/kprintf.c`** — format string parser supporting `%c`, `%s`, `%d`, `%u`, `%x`, `%p`, `%%`. Uses `__builtin_va_list` and GCC's `__builtin_va_start` / `__builtin_va_arg` builtins (works in freestanding mode without `<stdarg.h>`). Integer printing is recursive-free — digits are buffered into a local array then printed in reverse. Writes directly to `vga_putchar()`.
 
 **`lib/ports.c`** — C-linkage wrappers around the `inb`/`outb` inline assembly in `kernel.h`. Useful when a translation unit needs port I/O without pulling in all of `kernel.h`.
 
@@ -289,7 +290,7 @@ Power on / QEMU start
   └─ GRUB scans first 8 KB of binary for magic 0x1BADB002
        └─ GRUB verifies checksum, loads ELF into RAM at 0x100000
             └─ GRUB jumps to kernel_start in 32-bit protected mode
-                 └─ boot.asm: set esp, push mbi + magic, call kernel_main
+                 └─ boot.asm: set esp, push eax (magic) + ebx (mbi), call kernel_main
                       └─ kernel_main.c:
                            1. vga_init()        — console first, so kprintf works
                            2. verify magic      — confirm GRUB handshake
@@ -319,10 +320,11 @@ Physical address      Contents
   .text               code — multiboot header first
   .rodata             read-only data (string literals, const tables)
   .data               initialised globals
-  .bss                uninitialised (zero-filled at boot) — includes 16 KB stack
-  kernel_end ←─────── linker symbol; PMM bitmap starts here
-0x00400000            kernel heap base
-0x00800000            heap ceiling
+  .bss                uninitialised (zero-filled at boot) — stack (16 KB),
+                      page directory, page table, PMM bitmap
+  kernel_end ←─────── linker symbol exported to pmm.c
+0x00400000            kernel heap base  (HEAP_START in kmalloc.c)
+0x00800000            kernel heap ceiling (HEAP_MAX in kmalloc.c)
 ```
 
 Page layout (after `paging_init`):
