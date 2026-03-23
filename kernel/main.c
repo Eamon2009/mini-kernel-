@@ -61,11 +61,11 @@ void kernel_main(uint32_t magic, multiboot_info_t *mbi)
        keyboard_init();
        kprintf("[OK] Keyboard driver ready\n");
 
-       asm volatile("sti");
+       __asm__ __volatile__("sti");
        kprintf("[OK] Interrupts enabled\n");
        kprintf("\nmini-kernel ready.\n\n");
 
        shell_run();
        for (;;)
-              asm volatile("hlt");
+              __asm__ __volatile__("hlt");
 }

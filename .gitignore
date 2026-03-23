@@ -1,6 +1,29 @@
-main.o
-kprintf.o
-shell.o
-vga.o
-keyboard.o
-idt.o
+# Build artifacts
+*.o
+*.obj
+*.bin
+*.iso
+*.elf
+*.map
+*.lst
+
+# Build folders
+isodir/
+build/
+dist/
+
+# Emulator images
+*.img
+*.qcow2
+
+# Logs/temp
+*.log
+*.tmp
+*~
+*.swp
+
+# IDE/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

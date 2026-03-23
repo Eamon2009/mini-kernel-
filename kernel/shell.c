@@ -291,13 +291,13 @@ static void cmd_reboot(void)
 
        /* If keyboard controller reboot fails, trigger a triple fault
         * by loading a null IDT and firing an interrupt. */
-       asm volatile(
+       __asm__ __volatile__(
            "lidt %0\n"
            "int  $3\n" ::"m"((uint64_t){0}));
 
        /* Should never reach here */
        for (;;)
-              asm volatile("hlt");
+              __asm__ __volatile__("hlt");
 }
 
 static void cmd_panic_test(void)

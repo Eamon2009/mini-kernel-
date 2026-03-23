@@ -55,5 +55,5 @@ void timer_sleep(uint32_t ms)
        /* Convert ms → ticks: ticks_per_ms = tick_hz / 1000 */
        uint32_t target = ticks + (ms * tick_hz) / 1000;
        while (ticks < target)
-              asm volatile("hlt"); /* sleep between ticks */
+              __asm__ __volatile__("hlt"); /* sleep between ticks */
 }
