@@ -377,5 +377,10 @@ The architecture is designed to be extended one layer at a time:
 - [James Molloy's kernel tutorial](http://www.jamesmolloy.co.uk/tutorial_html/) — classic walkthrough that inspired this project
 
 ---
+ 
+## License
 
+MIT
+
+---
 *mini-kernel — built from scratch, one approved step at a time.*
