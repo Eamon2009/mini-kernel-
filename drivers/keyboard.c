@@ -111,6 +111,6 @@ char keyboard_getchar(void)
 {
        char c;
        while (!buf_pop(&c))
-              asm volatile("hlt"); /* sleep until IRQ 1 fills the buffer */
+              __asm__ __volatile__("hlt"); /* sleep until IRQ 1 fills the buffer */
        return c;
 }

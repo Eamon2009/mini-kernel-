@@ -23,7 +23,7 @@ void panic_set_regs(registers_t *r)
 NORETURN void panic(const char *msg)
 {
        /* Kill interrupts immediately — no more preemption */
-       asm volatile("cli");
+       __asm__ __volatile__("cli");
 
        /* Paint top two rows red so it's unmissable */
        vga_set_color(VGA_COLOR_WHITE, VGA_COLOR_RED);
@@ -54,6 +54,6 @@ NORETURN void panic(const char *msg)
        /* Halt forever — NMI-proof loop */
        for (;;)
        {
-              asm volatile("cli; hlt");
+              __asm__ __volatile__("cli; hlt");
        }
 }
