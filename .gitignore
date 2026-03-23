@@ -1,0 +1,6 @@
+main.o
+kprintf.o
+shell.o
+vga.o
+keyboard.o
+idt.o

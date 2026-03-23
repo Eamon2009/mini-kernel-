@@ -85,6 +85,20 @@ void vga_putchar(char c)
        {
               vga_col = 0;
        }
+       else if (c == '\b')
+       {
+              if (vga_col > 0)
+              {
+                     vga_col--;
+                     put_entry(' ', vga_attr, vga_col, vga_row);
+              }
+              else if (vga_row > 0)
+              {
+                     vga_row--;
+                     vga_col = VGA_COLS - 1;
+                     put_entry(' ', vga_attr, vga_col, vga_row);
+              }
+       }
        else if (c == '\t')
        {
               vga_col = (uint8_t)((vga_col + 8) & ~7u); /* next 8-stop */

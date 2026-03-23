@@ -16,5 +16,3 @@ char keyboard_getchar(void); /* blocking — waits for next keypress */
 int keyboard_haschar(void);  /* non-blocking poll */
 
 #endif
-mykernel / drivers /
-    keyboard.c
