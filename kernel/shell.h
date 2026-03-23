@@ -8,10 +8,18 @@
 
 #include "../kernel/kernel.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Maximum characters in one input line (including NUL) */
 #define SHELL_LINE_MAX 128
 
-/* Start the shell — never returns (runs the read-eval loop) */
+/* Start the shell: never returns (runs the read-eval loop) */
 void shell_run(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* SHELL_H */

@@ -1,6 +1,7 @@
 /* kernel/main.c */
 
 #include "shell.h"
+#include "cpp_runtime.h"
 #include "kernel.h"
 
 /* drivers */
@@ -33,6 +34,10 @@ void kernel_main(uint32_t magic, multiboot_info_t *mbi)
               panic("Invalid bootloader");
        }
        kprintf("[OK] Multiboot magic verified\n");
+
+       /* Run optional C++ global constructors (safe if none exist). */
+       cpp_init();
+       kprintf("[OK] C++ runtime init complete\n");
 
        gdt_init();
        kprintf("[OK] GDT loaded\n");

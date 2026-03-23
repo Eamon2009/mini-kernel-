@@ -21,6 +21,15 @@ SECTIONS
         *(.rodata.*)
     }
 
+    /* C++ global constructors */
+    .init_array ALIGN(4K) :
+    {
+        __init_array_start = .;
+        KEEP(*(.init_array))
+        KEEP(*(.init_array.*))
+        __init_array_end = .;
+    }
+
     /* ── Initialised data ──────────────────────────────── */
     .data ALIGN(4K) :
     {
