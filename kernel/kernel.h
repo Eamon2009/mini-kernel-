@@ -1,5 +1,5 @@
 /* kernel/kernel.h
- * Shared primitive types, macros, and structs used
+ *  Shared primitive types, macros, and structs used
  * across every subsystem. Include this everywhere. */
 
 #ifndef KERNEL_H
