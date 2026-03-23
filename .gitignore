@@ -6,6 +6,7 @@
 *.elf
 *.map
 *.lst
+isr.o
 
 # Build folders
 isodir/

@@ -4,6 +4,10 @@
 
 #include "../kernel/kernel.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* VGA text mode constants */
 #define VGA_COLS 80
 #define VGA_ROWS 25
@@ -35,5 +39,9 @@ void vga_clear(void);
 void vga_set_color(vga_color_t fg, vga_color_t bg);
 void vga_putchar(char c);
 void vga_puts(const char *s);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

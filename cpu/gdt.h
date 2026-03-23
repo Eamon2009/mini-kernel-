@@ -3,6 +3,10 @@
 #define GDT_H
 #include "../kernel/kernel.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct
 {
        uint16_t limit_low;
@@ -20,4 +24,8 @@ typedef struct
 } PACKED gdt_ptr_t;
 
 void gdt_init(void);
+
+#ifdef __cplusplus
+}
+#endif
 #endif

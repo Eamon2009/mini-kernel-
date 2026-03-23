@@ -1,4 +1,4 @@
-/* kernel/main.c */
+/* kernel/main.cpp */
 
 #include "shell.h"
 #include "cpp_runtime.h"
@@ -23,11 +23,14 @@
 /* lib */
 #include "../lib/kprintf.h"
 
-void kernel_main(uint32_t magic, multiboot_info_t *mbi)
+extern "C" void kernel_main(uint32_t magic, multiboot_info_t *mbi)
 {
+       // Initialize VGA text output
        vga_init();
+
        kprintf("mini-kernel booting...\n");
 
+       // Check multiboot magic
        if (magic != MULTIBOOT_MAGIC)
        {
               kprintf("[FATAL] Bad multiboot magic: 0x%x\n", magic);
@@ -35,10 +38,11 @@ void kernel_main(uint32_t magic, multiboot_info_t *mbi)
        }
        kprintf("[OK] Multiboot magic verified\n");
 
-       /* Run optional C++ global constructors (safe if none exist). */
+       // Initialize optional C++ runtime (constructors)
        cpp_init();
        kprintf("[OK] C++ runtime init complete\n");
 
+       // CPU setup
        gdt_init();
        kprintf("[OK] GDT loaded\n");
 
@@ -51,6 +55,7 @@ void kernel_main(uint32_t magic, multiboot_info_t *mbi)
        irq_init();
        kprintf("[OK] IRQs remapped and installed\n");
 
+       // Memory setup
        pmm_init(mbi);
        kprintf("[OK] PMM initialised\n");
 
@@ -60,17 +65,25 @@ void kernel_main(uint32_t magic, multiboot_info_t *mbi)
        kmalloc_init();
        kprintf("[OK] Heap ready\n");
 
+       // Device drivers
        timer_init(100);
        kprintf("[OK] Timer at 100 Hz\n");
 
        keyboard_init();
        kprintf("[OK] Keyboard driver ready\n");
 
-       __asm__ __volatile__("sti");
+       // Enable interrupts
+       asm volatile("sti");
        kprintf("[OK] Interrupts enabled\n");
+
        kprintf("\nmini-kernel ready.\n\n");
 
+       // Start shell
        shell_run();
-       for (;;)
-              __asm__ __volatile__("hlt");
+
+       // Halt CPU when shell exits
+       while (true)
+       {
+              asm volatile("hlt");
+       }
 }

@@ -4,6 +4,10 @@
 
 #include "../kernel/kernel.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* 8253/8254 PIT base frequency (Hz) — hardware constant */
 #define PIT_BASE_HZ 1193182
 
@@ -14,5 +18,9 @@
 void timer_init(uint32_t hz);   /* program PIT to fire at hz Hz */
 uint32_t timer_get_ticks(void); /* monotonic tick counter */
 void timer_sleep(uint32_t ms);  /* busy-sleep for ms milliseconds */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

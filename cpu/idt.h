@@ -3,6 +3,10 @@
 #define IDT_H
 #include "../kernel/kernel.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct
 {
        uint16_t offset_low;
@@ -21,4 +25,8 @@ typedef struct
 void idt_init(void);
 void idt_set_gate(uint8_t num, uint32_t handler,
                   uint16_t sel, uint8_t flags);
+
+#ifdef __cplusplus
+}
+#endif
 #endif

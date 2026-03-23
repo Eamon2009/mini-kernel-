@@ -5,6 +5,10 @@
 #ifndef KERNEL_H
 #define KERNEL_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* ── Primitive types (no stdint.h in freestanding env) ──── */
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
@@ -111,5 +115,9 @@ INLINE void io_wait(void)
 
 /* ── kernel/panic.c ─────────────────────────────────────── */
 NORETURN void panic(const char *msg);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* KERNEL_H */
