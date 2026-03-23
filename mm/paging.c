@@ -55,9 +55,10 @@ void paging_map(uint32_t virt, uint32_t phys, uint32_t flags)
 
        if (!(page_dir[pdi] & PAGE_PRESENT))
        {
-              uint32_t frame = pmm_alloc_frame();
+              /* New page tables must be reachable while only low memory is identity-mapped. */
+              uint32_t frame = pmm_alloc_frame_below(0x400000);
               if (!frame)
-                     panic("paging_map: OOM");
+                     panic("paging_map: no low frame for page table");
               memset((void *)frame, 0, PAGE_SIZE);
               page_dir[pdi] = frame | PAGE_PRESENT | PAGE_WRITE;
        }

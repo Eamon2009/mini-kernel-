@@ -19,6 +19,23 @@ static void bmp_set(uint32_t f) { bitmap[f / 32] |= BIT(f % 32); }
 static void bmp_clear(uint32_t f) { bitmap[f / 32] &= ~BIT(f % 32); }
 static int bmp_test(uint32_t f) { return !!(bitmap[f / 32] & BIT(f % 32)); }
 
+static uint32_t alloc_frame_limit(uint32_t frame_limit)
+{
+       if (frame_limit > MAX_FRAMES)
+              frame_limit = MAX_FRAMES;
+
+       for (uint32_t frame = 0; frame < frame_limit; frame++)
+       {
+              if (!bmp_test(frame))
+              {
+                     bmp_set(frame);
+                     free_frames--;
+                     return frame * PMM_FRAME_SIZE;
+              }
+       }
+       return 0;
+}
+
 void pmm_init(multiboot_info_t *mbi)
 {
        total_frames = 0;
@@ -79,22 +96,15 @@ void pmm_init(multiboot_info_t *mbi)
 
 uint32_t pmm_alloc_frame(void)
 {
-       for (uint32_t w = 0; w < BMP_WORDS; w++)
-       {
-              if (bitmap[w] == 0xFFFFFFFF)
-                     continue;
-              for (int b = 0; b < 32; b++)
-              {
-                     uint32_t frame = w * 32 + (uint32_t)b;
-                     if (!bmp_test(frame))
-                     {
-                            bmp_set(frame);
-                            free_frames--;
-                            return frame * PMM_FRAME_SIZE;
-                     }
-              }
-       }
-       return 0;
+       return alloc_frame_limit(MAX_FRAMES);
+}
+
+uint32_t pmm_alloc_frame_below(uint32_t addr_limit)
+{
+       uint32_t frame_limit = addr_limit / PMM_FRAME_SIZE;
+       if (frame_limit > MAX_FRAMES)
+              frame_limit = MAX_FRAMES;
+       return alloc_frame_limit(frame_limit);
 }
 
 void pmm_free_frame(uint32_t addr)
