@@ -59,5 +59,5 @@ char *strchr(const char *s, int c)
                      return (char *)s;
               s++;
        }
-       return NULL;
+       return ((char)c == '\0') ? (char *)s : NULL;
 }

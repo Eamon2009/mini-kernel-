@@ -17,8 +17,9 @@ TARGET  = mykernel.bin
 ISO     = mykernel.iso
 
 # Source files — order matters for linking
-C_SRCS  = kernel/kernel_main.c \
+C_SRCS  = kernel/main.c         \
           kernel/panic.c       \
+          kernel/shell.c       \
           drivers/vga.c        \
           drivers/keyboard.c   \
           drivers/timer.c      \
@@ -33,8 +34,9 @@ C_SRCS  = kernel/kernel_main.c \
           lib/kprintf.c        \
           lib/ports.c
 
-ASM_SRCS = boot/boot.asm \
-           boot/kernel_entry.asm
+ASM_SRCS = boot/boot.asm       \
+           boot/kernel_entry.asm \
+           cpu/tables_flush.asm
 
 # Object files
 C_OBJS   = $(C_SRCS:.c=.o)

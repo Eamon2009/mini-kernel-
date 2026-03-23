@@ -1,34 +1,12 @@
-/* cpu/idt.c — Interrupt Descriptor Table
- * 256 gates. isr.c fills 0–31, irq.c fills 32–47.
- * All unused gates left zeroed (not-present). */
+#ifndef ISR_H
+#define ISR_H
 
-#include "idt.h"
+#include "../kernel/kernel.h"
 
-#define IDT_ENTRIES 256
+typedef void (*isr_t)(registers_t *);
 
-static idt_entry_t idt[IDT_ENTRIES];
-static idt_ptr_t idt_ptr;
+void isr_init(void);
+void isr_register_handler(uint8_t num, isr_t handler);
+void register_interrupt_handler(uint8_t n, isr_t handler);
 
-extern void idt_flush(uint32_t); /* lidt stub in asm */
-
-void idt_set_gate(uint8_t num, uint32_t handler,
-                  uint16_t sel, uint8_t flags)
-{
-       idt[num].offset_low = handler & 0xFFFF;
-       idt[num].offset_high = (handler >> 16) & 0xFFFF;
-       idt[num].selector = sel;
-       idt[num].zero = 0;
-       idt[num].type_attr = flags | 0x60;
-}
-
-void idt_init(void)
-{
-       idt_ptr.limit = sizeof(idt) - 1;
-       idt_ptr.base = (uint32_t)&idt;
-       /* zero all gates — marks them not-present */
-       for (int i = 0; i < IDT_ENTRIES; i++)
-       {
-              idt_set_gate(i, 0, 0x08, 0x00);
-       }
-       idt_flush((uint32_t)&idt_ptr);
-}
+#endif

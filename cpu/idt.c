@@ -18,7 +18,7 @@ void idt_set_gate(uint8_t num, uint32_t handler,
        idt[num].offset_high = (handler >> 16) & 0xFFFF;
        idt[num].selector = sel;
        idt[num].zero = 0;
-       idt[num].type_attr = flags | 0x60;
+       idt[num].type_attr = flags;
 }
 
 void idt_init(void)

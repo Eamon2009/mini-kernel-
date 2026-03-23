@@ -1,4 +1,4 @@
-/* cpu/isr.c — CPU exception handlers (vectors 0–31) */
+/* cpu/isr.c - CPU exception handlers (vectors 0-31) */
 
 #include "isr.h"
 #include "idt.h"
@@ -57,7 +57,16 @@ static const char *exception_names[] = {
 
 static isr_t handlers[32] = {0};
 
-void isr_register_handler(uint8_t num, isr_t h) { handlers[num] = h; }
+void isr_register_handler(uint8_t num, isr_t handler)
+{
+       if (num < ARRAY_SIZE(handlers))
+              handlers[num] = handler;
+}
+
+void register_interrupt_handler(uint8_t n, isr_t handler)
+{
+       isr_register_handler(n, handler);
+}
 
 void isr_init(void)
 {
@@ -67,20 +76,26 @@ void isr_init(void)
            isr16, isr17, isr18, isr19, isr20, isr21, isr22, isr23,
            isr24, isr25, isr26, isr27, isr28, isr29, isr30, isr31};
        for (int i = 0; i < 32; i++)
-              idt_set_gate(i, (uint32_t)stubs[i], 0x08, 0x8E);
+              idt_set_gate((uint8_t)i, (uint32_t)stubs[i], 0x08, 0x8E);
 }
 
 /* Called by isr_common_stub in kernel_entry.asm */
 void isr_handler(registers_t *r)
 {
-       if (handlers[r->int_no])
+       if (r->int_no < ARRAY_SIZE(handlers) && handlers[r->int_no])
        {
               handlers[r->int_no](r);
               return;
        }
-       /* Unhandled exception → panic */
+
        panic_set_regs(r);
-       kprintf("[EXCEPTION] %s (int %u, err 0x%x)\n",
-               exception_names[r->int_no], r->int_no, r->err_code);
-       panic(exception_names[r->int_no]);
+       if (r->int_no < ARRAY_SIZE(exception_names))
+       {
+              kprintf("[EXCEPTION] %s (int %u, err 0x%x)\n",
+                      exception_names[r->int_no], r->int_no, r->err_code);
+              panic(exception_names[r->int_no]);
+       }
+       kprintf("[EXCEPTION] Unknown exception (int %u, err 0x%x)\n",
+               r->int_no, r->err_code);
+       panic("Unknown CPU exception");
 }

@@ -8,6 +8,7 @@
 #include "../lib/string.h"
 #include "../lib/kprintf.h"
 #include "../cpu/isr.h"
+#include "../kernel/panic.h"
 
 /* Page directory and one page table — 4 KB aligned in BSS */
 static uint32_t page_dir[1024] __attribute__((aligned(4096)));
@@ -63,6 +64,7 @@ void paging_map(uint32_t virt, uint32_t phys, uint32_t flags)
 
        uint32_t *tab = (uint32_t *)(page_dir[pdi] & ~0xFFF);
        tab[pti] = phys | flags | PAGE_PRESENT;
+       asm volatile("invlpg (%0)" : : "r"((void *)virt) : "memory");
 }
 
 uint32_t paging_virt_to_phys(uint32_t virt)

@@ -1,9 +1,7 @@
-/* mm/pmm.c
- * Bitmap-based physical frame allocator.
- * One bit per 4 KB frame: 0 = free, 1 = used.
- * The bitmap itself lives just above kernel_end. */
+/* mm/pmm.c - Bitmap-based physical frame allocator */
 
 #include "pmm.h"
+#include "../kernel/panic.h"
 #include "../lib/kprintf.h"
 #include "../lib/string.h"
 
@@ -11,6 +9,7 @@ extern uint32_t kernel_end; /* symbol from linker.ld */
 
 #define MAX_FRAMES (1024 * 256) /* support up to 1 GB RAM */
 #define BMP_WORDS (MAX_FRAMES / 32)
+#define PMM_MAX_ADDR ((uint64_t)MAX_FRAMES * PMM_FRAME_SIZE)
 
 static uint32_t bitmap[BMP_WORDS];
 static uint32_t total_frames = 0;
@@ -22,41 +21,54 @@ static int bmp_test(uint32_t f) { return !!(bitmap[f / 32] & BIT(f % 32)); }
 
 void pmm_init(multiboot_info_t *mbi)
 {
-       /* Mark everything used by default */
+       total_frames = 0;
+       free_frames = 0;
+
+       if (!mbi || !(mbi->flags & BIT(6)))
+              panic("PMM: multiboot memory map missing");
+
+       /* Mark everything used by default. */
        memset(bitmap, 0xFF, sizeof(bitmap));
 
-       mmap_entry_t *entry = (mmap_entry_t *)mbi->mmap_addr;
-       mmap_entry_t *end = (mmap_entry_t *)(mbi->mmap_addr + mbi->mmap_length);
+       mmap_entry_t *entry = (mmap_entry_t *)(uintptr_t)mbi->mmap_addr;
+       mmap_entry_t *end = (mmap_entry_t *)(uintptr_t)(mbi->mmap_addr + mbi->mmap_length);
 
        while (entry < end)
        {
               if (entry->type == 1)
-              { /* available RAM */
-                     uint32_t base = (uint32_t)entry->base_addr;
-                     uint32_t frames = (uint32_t)(entry->length / PMM_FRAME_SIZE);
-                     for (uint32_t i = 0; i < frames; i++)
+              {
+                     uint64_t start64 = entry->base_addr;
+                     uint64_t end64 = entry->base_addr + entry->length;
+
+                     if (start64 < PMM_MAX_ADDR)
                      {
-                            uint32_t frame = (base / PMM_FRAME_SIZE) + i;
-                            if (frame < MAX_FRAMES)
+                            if (end64 > PMM_MAX_ADDR)
+                                   end64 = PMM_MAX_ADDR;
+
+                            uint32_t start = ALIGN_UP((uint32_t)start64, PMM_FRAME_SIZE);
+                            uint32_t limit = ALIGN_DN((uint32_t)end64, PMM_FRAME_SIZE);
+
+                            for (uint32_t addr = start; addr < limit; addr += PMM_FRAME_SIZE)
                             {
+                                   uint32_t frame = addr / PMM_FRAME_SIZE;
                                    bmp_clear(frame);
                                    free_frames++;
                                    total_frames++;
                             }
                      }
               }
+
               entry = (mmap_entry_t *)((uint32_t)entry + entry->size + 4);
        }
 
-       /* Re-mark frames occupied by kernel + bitmap as used */
-       uint32_t used_end = ALIGN_UP((uint32_t)&kernel_end + sizeof(bitmap),
-                                    PMM_FRAME_SIZE);
+       /* Re-mark frames occupied by the kernel image and static data. */
+       uint32_t used_end = ALIGN_UP((uint32_t)&kernel_end, PMM_FRAME_SIZE);
        for (uint32_t addr = 0; addr < used_end; addr += PMM_FRAME_SIZE)
        {
-              uint32_t f = addr / PMM_FRAME_SIZE;
-              if (!bmp_test(f))
+              uint32_t frame = addr / PMM_FRAME_SIZE;
+              if (frame < MAX_FRAMES && !bmp_test(frame))
               {
-                     bmp_set(f);
+                     bmp_set(frame);
                      free_frames--;
               }
        }
@@ -73,26 +85,29 @@ uint32_t pmm_alloc_frame(void)
                      continue;
               for (int b = 0; b < 32; b++)
               {
-                     uint32_t f = w * 32 + b;
-                     if (!bmp_test(f))
+                     uint32_t frame = w * 32 + (uint32_t)b;
+                     if (!bmp_test(frame))
                      {
-                            bmp_set(f);
+                            bmp_set(frame);
                             free_frames--;
-                            return f * PMM_FRAME_SIZE;
+                            return frame * PMM_FRAME_SIZE;
                      }
               }
        }
-       return 0; /* out of memory */
+       return 0;
 }
 
 void pmm_free_frame(uint32_t addr)
 {
-       uint32_t f = addr / PMM_FRAME_SIZE;
-       if (bmp_test(f))
+       uint32_t frame = addr / PMM_FRAME_SIZE;
+       if (frame < MAX_FRAMES && bmp_test(frame))
        {
-              bmp_clear(f);
+              bmp_clear(frame);
               free_frames++;
        }
 }
 
-uint32_t pmm_free_count(void) { return free_frames; }
+uint32_t pmm_free_count(void)
+{
+       return free_frames;
+}

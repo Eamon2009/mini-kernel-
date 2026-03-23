@@ -33,12 +33,13 @@ static void print_uint(uint32_t n, uint32_t base)
 
 static void print_int(int32_t n)
 {
+       uint32_t u = (uint32_t)n;
        if (n < 0)
        {
               vga_putchar('-');
-              n = -n;
+              u = (uint32_t)(-(int64_t)n);
        }
-       print_uint((uint32_t)n, 10);
+       print_uint(u, 10);
 }
 
 void kprintf(const char *fmt, ...)

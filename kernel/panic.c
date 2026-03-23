@@ -4,7 +4,7 @@
  * Prints a message, dumps the register frame if available,
  * disables interrupts and halts forever. */
 
-#include "kernel.h"
+#include "panic.h"
 #include "../lib/kprintf.h"
 #include "../drivers/vga.h"
 
