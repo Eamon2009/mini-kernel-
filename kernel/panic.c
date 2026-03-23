@@ -1,5 +1,4 @@
-Steps 1–6 ✓ Step 7 of 12 kernel / panic.c — kernel panic handler awaiting approval mykernel / kernel /
-    panic.c
+
 /* kernel/panic.c
  * Called when the kernel encounters an unrecoverable error.
  * Prints a message, dumps the register frame if available,
@@ -9,8 +8,8 @@ Steps 1–6 ✓ Step 7 of 12 kernel / panic.c — kernel panic handler awaiting 
 #include "../lib/kprintf.h"
 #include "../drivers/vga.h"
 
-    /* Last register frame captured by an ISR — set by isr.c */
-    static registers_t *panic_regs = NULL;
+/* Last register frame captured by an ISR — set by isr.c */
+static registers_t *panic_regs = NULL;
 
 void panic_set_regs(registers_t *r)
 {
