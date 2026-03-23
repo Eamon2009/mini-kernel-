@@ -1,0 +1,63 @@
+/* lib/string.c */
+#include "string.h"
+
+void *memset(void *s, int c, size_t n)
+{
+       uint8_t *p = s;
+       while (n--)
+              *p++ = (uint8_t)c;
+       return s;
+}
+void *memcpy(void *dst, const void *src, size_t n)
+{
+       uint8_t *d = dst;
+       const uint8_t *s = src;
+       while (n--)
+              *d++ = *s++;
+       return dst;
+}
+int memcmp(const void *a, const void *b, size_t n)
+{
+       const uint8_t *x = a, *y = b;
+       while (n--)
+       {
+              if (*x != *y)
+                     return *x - *y;
+              x++;
+              y++;
+       }
+       return 0;
+}
+size_t strlen(const char *s)
+{
+       size_t n = 0;
+       while (*s++)
+              n++;
+       return n;
+}
+char *strcpy(char *dst, const char *src)
+{
+       char *d = dst;
+       while ((*d++ = *src++))
+              ;
+       return dst;
+}
+int strcmp(const char *a, const char *b)
+{
+       while (*a && *a == *b)
+       {
+              a++;
+              b++;
+       }
+       return (uint8_t)*a - (uint8_t)*b;
+}
+char *strchr(const char *s, int c)
+{
+       while (*s)
+       {
+              if (*s == (char)c)
+                     return (char *)s;
+              s++;
+       }
+       return NULL;
+}
