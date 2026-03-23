@@ -87,22 +87,22 @@ typedef struct
 INLINE uint8_t inb(uint16_t port)
 {
        uint8_t val;
-       asm volatile("inb %1, %0" : "=a"(val) : "Nd"(port));
+       __asm__ __volatile__("inb %1, %0" : "=a"(val) : "Nd"(port));
        return val;
 }
 INLINE void outb(uint16_t port, uint8_t val)
 {
-       asm volatile("outb %0, %1" ::"a"(val), "Nd"(port));
+       __asm__ __volatile__("outb %0, %1" ::"a"(val), "Nd"(port));
 }
 INLINE uint16_t inw(uint16_t port)
 {
        uint16_t val;
-       asm volatile("inw %1, %0" : "=a"(val) : "Nd"(port));
+       __asm__ __volatile__("inw %1, %0" : "=a"(val) : "Nd"(port));
        return val;
 }
 INLINE void outw(uint16_t port, uint16_t val)
 {
-       asm volatile("outw %0, %1" ::"a"(val), "Nd"(port));
+       __asm__ __volatile__("outw %0, %1" ::"a"(val), "Nd"(port));
 }
 INLINE void io_wait(void)
 {

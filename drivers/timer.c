@@ -21,10 +21,16 @@ static void timer_irq_handler(registers_t *r)
 /* ── timer_init ─────────────────────────────────────────── */
 void timer_init(uint32_t hz)
 {
-       tick_hz = hz;
+       if (!hz)
+              hz = 100;
 
        /* Divisor: PIT fires at PIT_BASE_HZ / divisor Hz */
        uint32_t divisor = PIT_BASE_HZ / hz;
+       if (!divisor)
+              divisor = 1;
+       if (divisor > 0xFFFF)
+              divisor = 0xFFFF;
+       tick_hz = PIT_BASE_HZ / divisor;
 
        /* Command: channel 0, lobyte/hibyte access, rate generator */
        outb(PIT_CMD, 0x36);
@@ -34,7 +40,7 @@ void timer_init(uint32_t hz)
        outb(PIT_CHANNEL0, (uint8_t)((divisor >> 8) & 0xFF));
 
        irq_register_handler(0, timer_irq_handler);
-       kprintf("[TIMER] PIT set to %u Hz (divisor %u)\n", hz, divisor);
+       kprintf("[TIMER] PIT set to %u Hz (divisor %u)\n", tick_hz, divisor);
 }
 
 /* ── timer_get_ticks ────────────────────────────────────── */
@@ -49,5 +55,5 @@ void timer_sleep(uint32_t ms)
        /* Convert ms → ticks: ticks_per_ms = tick_hz / 1000 */
        uint32_t target = ticks + (ms * tick_hz) / 1000;
        while (ticks < target)
-              asm volatile("hlt"); /* sleep between ticks */
+              __asm__ __volatile__("hlt"); /* sleep between ticks */
 }

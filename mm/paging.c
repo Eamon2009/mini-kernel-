@@ -8,6 +8,7 @@
 #include "../lib/string.h"
 #include "../lib/kprintf.h"
 #include "../cpu/isr.h"
+#include "../kernel/panic.h"
 
 /* Page directory and one page table — 4 KB aligned in BSS */
 static uint32_t page_dir[1024] __attribute__((aligned(4096)));
@@ -17,7 +18,7 @@ static uint32_t page_tab0[1024] __attribute__((aligned(4096)));
 static void page_fault_handler(registers_t *r)
 {
        uint32_t fault_addr;
-       asm volatile("mov %%cr2, %0" : "=r"(fault_addr));
+       __asm__ __volatile__("mov %%cr2, %0" : "=r"(fault_addr));
        kprintf("[PF] fault at 0x%x  err=0x%x  eip=0x%x\n",
                fault_addr, r->err_code, r->eip);
        panic_set_regs(r);
@@ -37,7 +38,7 @@ void paging_init(void)
        page_dir[0] = (uint32_t)page_tab0 | PAGE_PRESENT | PAGE_WRITE;
 
        /* Load CR3 and enable paging via CR0.PG */
-       asm volatile(
+       __asm__ __volatile__(
            "mov %0, %%cr3\n"
            "mov %%cr0, %%eax\n"
            "or  $0x80000000, %%eax\n"
@@ -54,15 +55,17 @@ void paging_map(uint32_t virt, uint32_t phys, uint32_t flags)
 
        if (!(page_dir[pdi] & PAGE_PRESENT))
        {
-              uint32_t frame = pmm_alloc_frame();
+              /* New page tables must be reachable while only low memory is identity-mapped. */
+              uint32_t frame = pmm_alloc_frame_below(0x400000);
               if (!frame)
-                     panic("paging_map: OOM");
+                     panic("paging_map: no low frame for page table");
               memset((void *)frame, 0, PAGE_SIZE);
               page_dir[pdi] = frame | PAGE_PRESENT | PAGE_WRITE;
        }
 
        uint32_t *tab = (uint32_t *)(page_dir[pdi] & ~0xFFF);
        tab[pti] = phys | flags | PAGE_PRESENT;
+       __asm__ __volatile__("invlpg (%0)" : : "r"((void *)virt) : "memory");
 }
 
 uint32_t paging_virt_to_phys(uint32_t virt)

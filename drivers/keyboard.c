@@ -32,8 +32,9 @@ static uint8_t kb_tail = 0; /* write index */
 static void buf_push(char c)
 {
        uint8_t next = (kb_tail + 1) % KB_BUF_SIZE;
-       if (next != kb_head) /* drop if full */
-              kb_buf[kb_tail = next - 1, kb_tail++] = c;
+       if (next == kb_head) /* drop if full */
+              return;
+       kb_buf[kb_tail] = c;
        kb_tail = next;
 }
 
@@ -110,6 +111,6 @@ char keyboard_getchar(void)
 {
        char c;
        while (!buf_pop(&c))
-              asm volatile("hlt"); /* sleep until IRQ 1 fills the buffer */
+              __asm__ __volatile__("hlt"); /* sleep until IRQ 1 fills the buffer */
        return c;
 }

@@ -5,6 +5,8 @@
 
 #include "kmalloc.h"
 #include "pmm.h"
+#include "paging.h"
+#include "../kernel/panic.h"
 #include "../lib/string.h"
 #include "../lib/kprintf.h"
 
@@ -48,11 +50,15 @@ static block_t *extend_heap(size_t size)
 void kmalloc_init(void)
 {
        heap_head = extend_heap(4096);
+       if (!heap_head)
+              panic("kmalloc_init: failed to initialise heap");
        kprintf("[HEAP] kernel heap ready at 0x%x\n", HEAP_START);
 }
 
 void *kmalloc(size_t size)
 {
+       if (!size)
+              return NULL;
        size = ALIGN_UP(size, 8); /* 8-byte alignment */
 
        for (block_t *b = heap_head; b; b = b->next)
@@ -74,6 +80,13 @@ void *kmalloc(size_t size)
        b->magic = MAGIC_USED;
        if (!heap_head)
               heap_head = b;
+       else
+       {
+              block_t *tail = heap_head;
+              while (tail->next)
+                     tail = tail->next;
+              tail->next = b;
+       }
        return (void *)(b + 1);
 }
 
