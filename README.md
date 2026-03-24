@@ -464,9 +464,7 @@ The architecture is designed to be extended one layer at a time. The shell is al
 
 ## License
 
-Licensed under the [Apache License, Version 2.0](LICENSE).
-
-You are free to use, modify, and distribute this project. Derivative works must carry prominent notices of changes made, retain the original copyright notice, and include a copy of this License.
+[MIT](LICENSE).
 
 ---
 
