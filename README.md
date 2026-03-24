@@ -17,6 +17,8 @@ A minimal x86 operating system kernel written from scratch in C and NASM assembl
   - [Drivers](#drivers)
   - [Memory Management](#memory-management)
   - [Standard Library](#standard-library)
+  - [Shell](#shell)
+- [Shell Commands](#shell-commands)
 - [Prerequisites](#prerequisites)
 - [Building](#building)
 - [Running](#running)
@@ -40,8 +42,9 @@ mini-kernel boots via GRUB (Multiboot 1), enters 32-bit protected mode, and init
 | **Drivers** | VGA text output, PS/2 keyboard (IRQ 1), PIT timer at 100 Hz (IRQ 0) |
 | **Memory** | Bitmap physical frame allocator, identity-mapped paging, kernel heap |
 | **Library** | `memset`/`memcpy`/`strcmp`, `kprintf` with `%c %s %d %u %x %p`, port I/O |
+| **Shell** | Interactive command interface — `help`, `mem`, `uptime`, `echo`, `color`, `reboot` and more |
 
-The kernel is entirely interrupt-driven after init. The idle loop uses `hlt` — the CPU sleeps until the next IRQ fires.
+The kernel is entirely interrupt-driven after init. After boot it drops into an interactive shell — type commands and the kernel responds in real time.
 
 ---
 
@@ -55,7 +58,8 @@ GRUB
                  ├─ cpu/              ← GDT → IDT → ISRs → IRQs
                  ├─ drivers/          ← VGA → timer → keyboard
                  ├─ mm/               ← PMM → paging → heap
-                 └─ lib/              ← string, kprintf, ports
+                 ├─ lib/              ← string, kprintf, ports
+                 └─ kernel/shell.c   ← interactive shell (final hand-off)
 ```
 
 Target: **i686** (32-bit x86), **Multiboot 1**, **ELF** binary, loaded at physical address `0x100000`.
@@ -77,7 +81,9 @@ mykernel/
 ├── kernel/
 │   ├── kernel_main.c          # C entry point, ordered subsystem initialisation
 │   ├── kernel.h               # Primitive types, macros, port I/O inlines, structs
-│   └── panic.c                # Kernel panic — red screen, register dump, halt
+│   ├── panic.c                # Kernel panic — red screen, register dump, halt
+│   ├── shell.c                # Interactive shell — command read-eval loop
+│   └── shell.h                # shell_run() declaration
 │
 ├── drivers/
 │   ├── vga.c / vga.h          # VGA text mode — 80×25, scroll, hardware cursor
@@ -101,7 +107,7 @@ mykernel/
     └── ports.c / ports.h      # port_inb / port_outb wrappers (C linkage)
 ```
 
-**27 source files + grub.cfg. Zero external libraries.**
+**29 source files + grub.cfg. Zero external libraries.**
 
 ---
 
@@ -165,6 +171,83 @@ mykernel/
 **`lib/kprintf.c`** — format string parser supporting `%c`, `%s`, `%d`, `%u`, `%x`, `%p`, `%%`. Uses `__builtin_va_list` and GCC's `__builtin_va_start` / `__builtin_va_arg` builtins (works in freestanding mode without `<stdarg.h>`). Integer printing is recursive-free — digits are buffered into a local array then printed in reverse. Writes directly to `vga_putchar()`.
 
 **`lib/ports.c`** — C-linkage wrappers around the `inb`/`outb` inline assembly in `kernel.h`. Useful when a translation unit needs port I/O without pulling in all of `kernel.h`.
+
+---
+
+### Shell
+
+**`kernel/shell.c`** — the interactive command interface. After all subsystems are initialised, `kernel_main` calls `shell_run()` which never returns. The shell runs a simple read-eval loop:
+
+1. Print the `mini> ` prompt in green
+2. Read a line of input one character at a time via `keyboard_getchar()`
+3. Handle backspace, printable characters, and Enter
+4. Match the first word against a dispatch table of `cmd_entry_t` structs
+5. Call the matching handler, passing the remainder of the line as arguments
+6. Unknown commands print an error in red and suggest `help`
+
+The shell uses **no dynamic allocation** in its core loop — the input line lives on the stack (`char line[128]`). Every command handler uses only functions already present in the kernel: `kprintf`, `vga_set_color`, `pmm_free_count`, `timer_get_ticks`, `timer_sleep`, `strcmp`, `memcmp`, `strlen`.
+
+---
+
+## Shell Commands
+
+After boot the kernel displays a banner and drops into the shell prompt:
+
+```
+  +------------------------------------------+
+  |       mini-kernel  v0.1.0-alpha          |
+  |    type 'help' to list commands          |
+  +------------------------------------------+
+
+mini> _
+```
+
+| Command | Arguments | Description |
+|---|---|---|
+| `help` | — | List all available commands |
+| `clear` | — | Clear the VGA screen |
+| `mem` | — | Show free physical RAM (frames, KB, MB) |
+| `uptime` | — | Show system uptime as h:m:s and raw ticks |
+| `echo` | `<text>` | Print text back to the screen |
+| `color` | `<name>` | Change text foreground colour |
+| `version` | — | Show kernel version, arch, build date/time |
+| `reboot` | — | Reboot via keyboard controller pulse |
+| `panic_test` | — | Trigger an intentional panic after 1 second |
+
+**Color names accepted by `color`:**
+`white` `green` `cyan` `red` `blue` `magenta` `brown` `grey` `yellow`
+
+**Example session:**
+
+```
+mini> help
+  Commands:
+
+    help        show this message
+    clear       clear the screen
+    mem         show free physical RAM
+    ...
+
+mini> mem
+  free frames : 32511
+  free memory : 127004 KB  (124 MB)
+
+mini> uptime
+  uptime: 0 h  0 m  4 s  (412 ticks)
+
+mini> echo hello from bare metal
+  hello from bare metal
+
+mini> color cyan
+  color set to cyan
+
+mini> version
+  mini-kernel  v0.1.0-alpha
+  arch  : i686 (32-bit protected mode)
+  boot  : GRUB Multiboot 1
+  timer : PIT 8253/8254 @ 100 Hz
+  build : Mar 24 2026  10:00:00
+```
 
 ---
 
@@ -304,7 +387,7 @@ Power on / QEMU start
                           10. timer_init(100)   — PIT at 100 Hz
                           11. keyboard_init()   — PS/2 driver on IRQ 1
                           12. sti              — interrupts enabled (last)
-                               └─ hlt idle loop — CPU sleeps, wakes on every IRQ
+                               └─ shell_run()  — interactive shell, never returns
 ```
 
 ---
@@ -338,7 +421,7 @@ Heap pages             0x400000+              mapped on demand by kmalloc
 
 ## What Happens at Runtime
 
-After init the kernel sits in the `hlt` idle loop. All activity is interrupt-driven:
+After init the kernel hands control to `shell_run()`. The shell blocks on `keyboard_getchar()` which internally uses `hlt` — so the CPU still sleeps between keystrokes. All background activity remains interrupt-driven:
 
 | Event | IRQ | Handler |
 |---|---|---|
@@ -346,14 +429,15 @@ After init the kernel sits in the `hlt` idle loop. All activity is interrupt-dri
 | Key pressed | IRQ 1 → vector 33 | `keyboard_irq_handler` decodes scan code, pushes to ring buffer |
 | CPU exception | vectors 0–31 | `isr_handler` — dispatches to registered handler or panics |
 | Page fault | vector 14 | Prints faulting address from CR2 then panics |
+| Shell command | — | User types a command, `shell_run()` dispatches to handler |
 
 ---
 
 ## Extending the Kernel
 
-The architecture is designed to be extended one layer at a time:
+The architecture is designed to be extended one layer at a time. The shell is already in place — add new commands by adding an entry to the `cmds[]` dispatch table in `kernel/shell.c`.
 
-**Interactive shell** — wire `keyboard_getchar()` into a read-eval loop. Parse commands like `help`, `mem`, `reboot`. All the pieces are already in place.
+**New shell commands** — add a `cmd_entry_t` to the `cmds[]` table in `shell.c`. The handler receives everything typed after the command name as a string argument.
 
 **Process scheduler** — add a `task_t` struct with a saved `esp` and a stack. Use the 100 Hz timer IRQ to context-switch between tasks. Round-robin scheduling fits in under 50 lines of C on top of this kernel.
 
@@ -377,10 +461,13 @@ The architecture is designed to be extended one layer at a time:
 - [James Molloy's kernel tutorial](http://www.jamesmolloy.co.uk/tutorial_html/) — classic walkthrough that inspired this project
 
 ---
- 
+
 ## License
 
-MIT
+Licensed under the [Apache License, Version 2.0](LICENSE).
+
+You are free to use, modify, and distribute this project. Derivative works must carry prominent notices of changes made, retain the original copyright notice, and include a copy of this License.
 
 ---
+
 *mini-kernel — built from scratch, one approved step at a time.*
